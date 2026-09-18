@@ -8,3 +8,4 @@ venv/
 *.egg-info/
 cron.log
 translate.sh*
+cookie.txt
