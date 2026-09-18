@@ -14,12 +14,12 @@ MODELS = [
 ]
 
 SUBREDDIT_PROMPTS = {
-    "tifu": "翻譯成正體中文。只輸出翻譯結果。保留原文的幽默風趣和口語化表達。請原文的「TIFU」不要翻譯，保留英文。",
-    "nosleep": "翻譯成正體中文。只輸出翻譯結果。保留恐怖氛圍和緊湊節奏。",
-    "shortscarystories": "翻譯成正體中文。只輸出翻譯結果。保留驚悚氛圍。",
+    "tifu": "翻譯成正體中文。只輸出翻譯結果，不要重複已翻譯的內容。保留原文的幽默風趣和口語化表達。請原文的「TIFU」不要翻譯，保留英文。",
+    "nosleep": "翻譯成正體中文。只輸出翻譯結果，不要重複已翻譯的內容。保留恐怖氛圍和緊湊節奏。",
+    "shortscarystories": "翻譯成正體中文。只輸出翻譯結果，不要重複已翻譯的內容。保留驚悚氛圍。",
 }
 
-DEFAULT_PREFIX = "翻譯成正體中文。只輸出翻譯結果，保留原文風格和語氣。"
+DEFAULT_PREFIX = "翻譯成正體中文。只輸出翻譯結果，不要重複已翻譯的內容，保留原文風格和語氣。"
 
 
 CHUNK_SIZE = 1500  # 字元數，超過則分段翻譯
@@ -31,7 +31,7 @@ def get_prefix(subreddit: str) -> str:
     return SUBREDDIT_PROMPTS.get(normalized, DEFAULT_PREFIX)
 
 
-TRANSLATION_PREFIX = "Translate to Traditional Chinese (Taiwan). Only output the translation, no explanation. Preserve horror atmosphere: "
+TRANSLATION_PREFIX = "翻譯成正體中文。只輸出翻譯結果，不要重複已翻譯的內容，保留原文風格和語氣。"
 
 
 def translate(
@@ -85,7 +85,10 @@ def _translate_chunked(text: str, model: str, prefix: str) -> str:
     for i, chunk in enumerate(chunks):
         reference = None
         if i > 0:
-            reference = f"前文翻譯（請保持人名譯名一致）：\n{results[-1]}"
+            # Only pass the last ~200 chars as a brief continuity hint
+            # to keep names consistent without causing full re-translation
+            prev_tail = results[-1][-200:] if len(results[-1]) > 200 else results[-1]
+            reference = prev_tail
 
         result = _translate_single(chunk, model, prefix, reference=reference)
         results.append(result)
@@ -127,7 +130,11 @@ def _translate_single(
     """Translate a single chunk of text to Traditional Chinese using Ollama."""
     user_content = text
     if reference:
-        user_content = f"{reference}\n\n---\n\n{text}"
+        user_content = (
+            f"[前文翻譯片段，僅供譯名參考，請勿重複翻譯此段]：\n"
+            f"...{reference}\n\n"
+            f"[請翻譯以下內容]：\n{text}"
+        )
 
     try:
         return _invoke(user_content, model, prefix)
